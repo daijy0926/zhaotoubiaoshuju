@@ -6,12 +6,6 @@
       "use": "@vercel/next"
     }
   ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
-    }
-  ],
   "env": {
     "NEXTAUTH_URL": "https://zhaotoubiaoshuju.daijy.top",
     "NEXT_PUBLIC_APP_URL": "https://zhaotoubiaoshuju.daijy.top"
