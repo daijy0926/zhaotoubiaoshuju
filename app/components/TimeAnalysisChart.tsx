@@ -1,7 +1,6 @@
 'use client';
 
-import React from 'react';
-import { Bar, Pie } from 'react-chartjs-2';
+import React, { useState } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -10,31 +9,30 @@ import {
   Title,
   Tooltip,
   Legend,
-  ArcElement
 } from 'chart.js';
+import { Bar } from 'react-chartjs-2';
 
-// 注册ChartJS组件
 ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
   Title,
   Tooltip,
-  Legend,
-  ArcElement
+  Legend
 );
 
-interface TimeAnalysisChartProps {
+// 定义属性类型
+export interface TimeAnalysisChartProps {
   data: {
-    dayOfWeekDistribution: {
+    dayOfWeekDistribution?: {
       labels: string[];
       data: number[];
     };
-    hourDistribution: {
+    hourDistribution?: {
       labels: string[];
       data: number[];
     };
-    processPeriods: {
+    processPeriods?: {
       average: string;
       distribution: {
         labels: string[];
@@ -42,224 +40,139 @@ interface TimeAnalysisChartProps {
       };
     };
   };
-  onClick?: (type: string, index: number) => void;
+  onClick?: (type: string, value: string | number) => void;
 }
 
-export default function TimeAnalysisChart({ data, onClick }: TimeAnalysisChartProps) {
-  // 星期几分布图表配置
-  const dayOfWeekChartData = {
-    labels: data.dayOfWeekDistribution.labels,
-    datasets: [
-      {
-        label: '招标数量',
-        data: data.dayOfWeekDistribution.data,
-        backgroundColor: [
-          'rgba(54, 162, 235, 0.7)',
-          'rgba(54, 162, 235, 0.7)',
-          'rgba(54, 162, 235, 0.7)',
-          'rgba(54, 162, 235, 0.7)',
-          'rgba(54, 162, 235, 0.7)',
-          'rgba(54, 162, 235, 0.7)',
-          'rgba(54, 162, 235, 0.7)',
-        ],
-        borderColor: [
-          'rgba(54, 162, 235, 1)',
-          'rgba(54, 162, 235, 1)',
-          'rgba(54, 162, 235, 1)',
-          'rgba(54, 162, 235, 1)',
-          'rgba(54, 162, 235, 1)',
-          'rgba(54, 162, 235, 1)',
-          'rgba(54, 162, 235, 1)',
-        ],
-        borderWidth: 1,
-      },
-    ],
+const TimeAnalysisChart: React.FC<TimeAnalysisChartProps> = ({ data, onClick }) => {
+  // 确保数据存在
+  if (!data) return <div>加载中...</div>;
+  
+  const [activeTab, setActiveTab] = useState<'weekday' | 'hour' | 'period'>('weekday');
+  
+  // 准备图表数据
+  const getChartData = () => {
+    switch(activeTab) {
+      case 'weekday':
+        return {
+          labels: data.dayOfWeekDistribution?.labels || ['周日', '周一', '周二', '周三', '周四', '周五', '周六'],
+          datasets: [
+            {
+              label: '项目数量',
+              data: data.dayOfWeekDistribution?.data || [0, 0, 0, 0, 0, 0, 0],
+              backgroundColor: 'rgba(53, 162, 235, 0.5)',
+              borderColor: 'rgb(53, 162, 235)',
+              borderWidth: 1,
+            },
+          ],
+        };
+      case 'hour':
+        return {
+          labels: data.hourDistribution?.labels || Array.from({length: 24}, (_, i) => `${i}时`),
+          datasets: [
+            {
+              label: '项目数量',
+              data: data.hourDistribution?.data || Array(24).fill(0),
+              backgroundColor: 'rgba(75, 192, 192, 0.5)',
+              borderColor: 'rgb(75, 192, 192)',
+              borderWidth: 1,
+            },
+          ],
+        };
+      case 'period':
+        return {
+          labels: data.processPeriods?.distribution.labels || ['7天内', '8-14天', '15-30天', '31-60天', '60天以上'],
+          datasets: [
+            {
+              label: '项目数量',
+              data: data.processPeriods?.distribution.data || [0, 0, 0, 0, 0],
+              backgroundColor: 'rgba(153, 102, 255, 0.5)',
+              borderColor: 'rgb(153, 102, 255)',
+              borderWidth: 1,
+            },
+          ],
+        };
+      default:
+        return {
+          labels: [],
+          datasets: [],
+        };
+    }
   };
-
-  const dayOfWeekOptions = {
+  
+  // 图表配置
+  const options = {
     responsive: true,
-    maintainAspectRatio: false,
     plugins: {
       legend: {
+        position: 'top' as const,
         display: false,
       },
       title: {
         display: true,
-        text: '一周内招标发布分布',
-        font: {
-          size: 16,
-        },
+        text: activeTab === 'weekday' 
+          ? '项目按星期分布' 
+          : activeTab === 'hour' 
+            ? '项目按小时分布' 
+            : '招标流程周期分布',
       },
-      tooltip: {
-        callbacks: {
-          label: function(context: any) {
-            const value = context.parsed.y;
-            const total = data.dayOfWeekDistribution.data.reduce((a, b) => a + b, 0);
-            const percentage = ((value / total) * 100).toFixed(1);
-            return `招标数量: ${value} (${percentage}%)`;
-          }
-        }
-      }
     },
     scales: {
       y: {
         beginAtZero: true,
-        title: {
-          display: true,
-          text: '招标数量'
-        }
       },
-      x: {
-        title: {
-          display: true,
-          text: '星期'
-        }
-      }
     },
-    onClick: (_: any, elements: any) => {
+    onClick: (event: any, elements: any[]) => {
       if (elements.length > 0 && onClick) {
-        const index = elements[0].index;
-        onClick('dayOfWeek', index);
-      }
-    }
-  };
-
-  // 招标周期分布的饼图配置
-  const processPeriodsChartData = {
-    labels: data.processPeriods.distribution.labels,
-    datasets: [
-      {
-        data: data.processPeriods.distribution.data,
-        backgroundColor: [
-          'rgba(255, 99, 132, 0.7)',
-          'rgba(54, 162, 235, 0.7)',
-          'rgba(255, 206, 86, 0.7)',
-          'rgba(75, 192, 192, 0.7)',
-          'rgba(153, 102, 255, 0.7)',
-        ],
-        borderColor: [
-          'rgba(255, 99, 132, 1)',
-          'rgba(54, 162, 235, 1)',
-          'rgba(255, 206, 86, 1)',
-          'rgba(75, 192, 192, 1)',
-          'rgba(153, 102, 255, 1)',
-        ],
-        borderWidth: 1,
-      },
-    ],
-  };
-
-  const processPeriodsOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'right' as const,
-      },
-      title: {
-        display: true,
-        text: '招标周期分布',
-        font: {
-          size: 16,
-        },
-      },
-      tooltip: {
-        callbacks: {
-          label: function(context: any) {
-            const value = context.parsed;
-            const total = data.processPeriods.distribution.data.reduce((a, b) => a + b, 0);
-            const percentage = ((value / total) * 100).toFixed(1);
-            return `${context.label}: ${value} (${percentage}%)`;
-          }
-        }
+        const { index } = elements[0];
+        const chartData = getChartData();
+        const value = chartData.labels[index];
+        onClick(activeTab, value);
       }
     },
-    onClick: (_: any, elements: any) => {
-      if (elements.length > 0 && onClick) {
-        const index = elements[0].index;
-        onClick('processPeriod', index);
-      }
-    }
   };
-
-  // 小时分布图表配置（仅显示工作时间）
-  const workHoursData = {
-    labels: data.hourDistribution.labels.slice(7, 19), // 仅选择7点到18点
-    datasets: [
-      {
-        label: '招标数量',
-        data: data.hourDistribution.data.slice(7, 19),
-        backgroundColor: 'rgba(75, 192, 192, 0.7)',
-        borderColor: 'rgba(75, 192, 192, 1)',
-        borderWidth: 1,
-      },
-    ],
-  };
-
-  const workHoursOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false,
-      },
-      title: {
-        display: true,
-        text: '工作时段招标发布分布',
-        font: {
-          size: 16,
-        },
-      },
-      tooltip: {
-        callbacks: {
-          label: function(context: any) {
-            const value = context.parsed.y;
-            const total = data.hourDistribution.data.reduce((a, b) => a + b, 0);
-            const percentage = ((value / total) * 100).toFixed(1);
-            return `招标数量: ${value} (${percentage}%)`;
-          }
-        }
-      }
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        title: {
-          display: true,
-          text: '招标数量'
-        }
-      },
-      x: {
-        title: {
-          display: true,
-          text: '时段'
-        }
-      }
-    },
-    onClick: (_: any, elements: any) => {
-      if (elements.length > 0 && onClick) {
-        const index = elements[0].index + 7; // 调整为实际的小时索引
-        onClick('hour', index);
-      }
-    }
-  };
-
+  
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div className="h-72">
-        <Bar data={dayOfWeekChartData} options={dayOfWeekOptions} />
+    <div className="h-full flex flex-col">
+      <div className="flex justify-center space-x-4 mb-4">
+        <button
+          className={`px-3 py-1 text-sm rounded-full ${
+            activeTab === 'weekday' ? 'bg-blue-500 text-white' : 'bg-gray-200'
+          }`}
+          onClick={() => setActiveTab('weekday')}
+        >
+          星期分布
+        </button>
+        <button
+          className={`px-3 py-1 text-sm rounded-full ${
+            activeTab === 'hour' ? 'bg-blue-500 text-white' : 'bg-gray-200'
+          }`}
+          onClick={() => setActiveTab('hour')}
+        >
+          时段分布
+        </button>
+        <button
+          className={`px-3 py-1 text-sm rounded-full ${
+            activeTab === 'period' ? 'bg-blue-500 text-white' : 'bg-gray-200'
+          }`}
+          onClick={() => setActiveTab('period')}
+        >
+          周期分布
+        </button>
       </div>
-      <div className="h-72">
-        <Pie data={processPeriodsChartData} options={processPeriodsOptions} />
+      
+      <div className="flex-1">
+        <Bar options={options} data={getChartData()} />
       </div>
-      <div className="h-72 lg:col-span-2">
-        <Bar data={workHoursData} options={workHoursOptions} />
-      </div>
-      <div className="lg:col-span-2 p-4 bg-blue-50 rounded-lg">
-        <h3 className="text-lg font-medium mb-2">招标流程周期分析</h3>
-        <p className="text-gray-700">平均招标周期: <span className="font-semibold text-blue-600">{data.processPeriods.average} 天</span></p>
-        <p className="text-sm text-gray-600 mt-2">从发布到开标的平均时间间隔，可帮助企业了解行业招标流程时长，合理安排投标准备时间。</p>
-      </div>
+      
+      {activeTab === 'period' && data.processPeriods && (
+        <div className="mt-2 text-center">
+          <p className="text-sm text-gray-600">
+            平均招标周期: <span className="font-bold text-blue-600">{data.processPeriods.average} 天</span>
+          </p>
+        </div>
+      )}
     </div>
   );
-} 
+};
+
+export default TimeAnalysisChart; 

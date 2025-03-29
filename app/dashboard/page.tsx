@@ -1,33 +1,26 @@
-import { getServerSession } from 'next-auth';
+import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import PowerBIDashboard from '../components/PowerBIDashboard';
-import ProjectList from '../components/ProjectList';
+import Navbar from '../components/Navbar';
 
 // 这个页面现在是服务器组件
-export default async function Dashboard() {
-  // 获取用户会话
+export default async function DashboardPage() {
+  // 获取用户会话信息
   const session = await getServerSession(authOptions);
-
-  // 如果用户未登录，重定向到登录页面
+  
   if (!session || !session.user) {
-    redirect('/api/auth/signin');
+    // 如果用户未登录，重定向到登录页面
+    redirect('/api/auth/signin?callbackUrl=/dashboard');
   }
-
-  // 将session.user.id强制类型转换
-  const userId = (session.user as any).id || '';
-
+  
+  // 获取用户ID
+  const userId = (session.user as any).id;
+  
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">智能招投标数据分析中心</h1>
-      
-      <div className="mb-8">
-        <PowerBIDashboard userId={userId} />
-      </div>
-      
-      <div className="mb-8">
-        <ProjectList userId={userId} />
-      </div>
-    </div>
+    <>
+      <Navbar />
+      <PowerBIDashboard userId={userId} />
+    </>
   );
 } 

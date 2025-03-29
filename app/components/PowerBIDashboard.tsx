@@ -6,6 +6,18 @@ import AdvancedAnalysisChart from './AdvancedAnalysisChart';
 import FilterPanel from './FilterPanel';
 import ChinaMap from './ChinaMap';
 import ProjectList from './ProjectList';
+import KeywordAnalysisPanel from './KeywordAnalysisPanel';
+import AnomalyDetectionPanel from './AnomalyDetectionPanel';
+import { 
+  BarChart, 
+  PieChart, 
+  Map, 
+  Clock, 
+  FileText,
+  Zap,
+  AlertTriangle,
+  Search
+} from 'lucide-react';
 
 // 加载骨架屏组件
 const SkeletonCard = () => (
@@ -84,6 +96,26 @@ export default function PowerBIDashboard({ userId }: PowerBIDashboardProps) {
     startDate: null,
     endDate: null,
   });
+  const [userInfo, setUserInfo] = useState<any>(null);
+
+  // 加载用户信息
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const response = await fetch('/api/auth/session');
+        if (response.ok) {
+          const session = await response.json();
+          setUserInfo(session.user);
+        }
+      } catch (error) {
+        console.error('获取用户信息失败:', error);
+      }
+    };
+
+    if (userId) {
+      fetchUserInfo();
+    }
+  }, [userId]);
 
   // 加载仪表盘数据
   useEffect(() => {
@@ -181,7 +213,7 @@ export default function PowerBIDashboard({ userId }: PowerBIDashboardProps) {
       },
       {
         title: '总预算金额',
-        value: dashboardData.budgetData?.budget?.reduce((a: number, b: number) => a + b, 0) || '加载中',
+        value: dashboardData.budgetData?.budgetValues?.reduce((a: number, b: number) => a + b, 0) || '加载中',
         unit: '万元',
         icon: <IconDollar className="text-green-500" />,
         change: '+12.8%',
@@ -271,12 +303,16 @@ export default function PowerBIDashboard({ userId }: PowerBIDashboardProps) {
               <AdvancedAnalysisChart 
                 type="trend"
                 data={{
-                  months: dashboardData.trendData.labels,
-                  projectCounts: dashboardData.trendData.bidCounts,
-                  avgBudgets: dashboardData.trendData.bidAmounts,
+                  months: dashboardData.trendData.months,
+                  projectCounts: dashboardData.trendData.projectCounts,
+                  avgBudgets: dashboardData.trendData.avgBudgets,
                   insights: [
-                    `${dashboardData.trendData.labels[11]}的招标数量同比增长${Math.round(Math.random() * 20)}%`,
-                    `${dashboardData.trendData.labels[6]}到${dashboardData.trendData.labels[8]}为招标高峰期`,
+                    `${dashboardData.trendData.months && dashboardData.trendData.months.length > 0 
+                      ? dashboardData.trendData.months[Math.min(11, dashboardData.trendData.months.length - 1)] 
+                      : '12月'}的招标数量同比增长${Math.round(Math.random() * 20)}%`,
+                    `${dashboardData.trendData.months && dashboardData.trendData.months.length > 8 
+                      ? `${dashboardData.trendData.months[Math.min(6, dashboardData.trendData.months.length - 1)]}到${dashboardData.trendData.months[Math.min(8, dashboardData.trendData.months.length - 1)]}` 
+                      : '7月到9月'}为招标高峰期`,
                     `预算金额与招标数量呈${Math.random() > 0.5 ? '正' : '负'}相关关系`
                   ]
                 }}
@@ -347,10 +383,19 @@ export default function PowerBIDashboard({ userId }: PowerBIDashboardProps) {
           <div>
             <h1 className="text-3xl font-bold text-gray-800">招标数据分析中心</h1>
             <p className="text-gray-500 mt-1">数据可视化 & 商业智能分析</p>
+            {userInfo && (
+              <p className="text-sm text-gray-600 mt-1">欢迎您，{userInfo.name || userInfo.email}</p>
+            )}
           </div>
           
           {/* 导出和刷新按钮 */}
           <div className="flex space-x-4 mt-4 md:mt-0">
+            <a href="/upload" className="px-4 py-2 bg-green-600 rounded-lg text-white flex items-center">
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              导入数据
+            </a>
             <button className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 flex items-center">
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
