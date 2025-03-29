@@ -93,7 +93,9 @@ async function getTrendData(whereClause: any) {
 
     // 按月分组统计
     projects.forEach(project => {
-      const date = new Date(project.publishTime * 1000);
+      // 将BigInt类型转换为Number类型再进行乘法运算
+      const publishTimeNumber = Number(project.publishTime);
+      const date = new Date(publishTimeNumber * 1000);
       if (date.getFullYear() === currentYear) {
         const month = date.getMonth();
         bidCounts[month]++;

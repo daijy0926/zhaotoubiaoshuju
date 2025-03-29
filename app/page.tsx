@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import Navbar from './components/Navbar';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from './api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 
 export default async function Home() {

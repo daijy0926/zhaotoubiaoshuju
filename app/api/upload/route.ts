@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getServerSession } from "next-auth/next"; // 导入 getServerSession
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"; // 导入 authOptions
+import { authOptions } from "@/lib/auth"; // 导入 authOptions
 
 // 数据预处理和标准化函数
 function preprocessData(records: any[]) {
@@ -130,12 +130,26 @@ function preprocessData(records: any[]) {
 }
 
 // 验证JSON结构和字段
-function validateJsonData(data: any) {
+interface ValidationResult {
+  valid: boolean;
+  error?: string;
+  totalCount?: number;
+  validCount?: number;
+  invalidCount?: number;
+  uniqueCount?: number;
+  duplicateCount?: number;
+  duplicateIds: string[];
+  validRecords: any[];
+}
+
+function validateJsonData(data: any): ValidationResult {
   // 检查是否为数组
   if (!Array.isArray(data)) {
     return {
       valid: false,
-      error: 'JSON数据必须是数组格式'
+      error: 'JSON数据必须是数组格式',
+      duplicateIds: [],
+      validRecords: []
     };
   }
   
@@ -143,7 +157,9 @@ function validateJsonData(data: any) {
   if (data.length === 0) {
     return {
       valid: false,
-      error: '数据数组不能为空'
+      error: '数据数组不能为空',
+      duplicateIds: [],
+      validRecords: []
     };
   }
   
@@ -156,7 +172,9 @@ function validateJsonData(data: any) {
   if (validRecords.length === 0) {
     return {
       valid: false,
-      error: '没有找到包含必要字段的有效记录'
+      error: '没有找到包含必要字段的有效记录',
+      duplicateIds: [],
+      validRecords: []
     };
   }
   
@@ -181,7 +199,7 @@ function validateJsonData(data: any) {
     invalidCount: data.length - validRecords.length,
     uniqueCount: uniqueIds.size,
     duplicateCount: duplicates.length,
-    duplicateIds: duplicates.length > 0 ? duplicates : [],
+    duplicateIds: duplicates,
     validRecords
   };
 }
