@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:skip-temp": "next build --no-lint && tsc --noEmit",
     "start": "next start",
     "lint": "next lint"
   },
