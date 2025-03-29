@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Bar, Doughnut, Line, Scatter } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -14,6 +14,8 @@ import {
   Legend,
   ArcElement
 } from 'chart.js';
+// 导入Chart类型
+import { Chart } from 'chart.js';
 
 // 注册ChartJS组件
 ChartJS.register(
@@ -36,6 +38,8 @@ interface AdvancedAnalysisChartProps {
 
 export default function AdvancedAnalysisChart({ data, type, onClick }: AdvancedAnalysisChartProps) {
   const [selectedView, setSelectedView] = useState<string>('default');
+  const chartRef = useRef<HTMLCanvasElement>(null);
+  const chartInstanceRef = useRef<ChartJS | null>(null);
   
   // 预算分析图表
   const renderBudgetAnalysis = () => {
@@ -139,180 +143,156 @@ export default function AdvancedAnalysisChart({ data, type, onClick }: AdvancedA
       }
     };
 
+    useEffect(() => {
+      if (!chartRef.current) return;
+      
+      // 清除旧图表
+      if (chartInstanceRef.current) {
+        chartInstanceRef.current.destroy();
+      }
+      
+      // 创建新图表
+      const ctx = chartRef.current.getContext('2d');
+      if (ctx) {
+        chartInstanceRef.current = new ChartJS(ctx, {
+          type: 'bar',
+          data: budgetDiffData,
+          options: budgetDiffOptions
+        });
+      }
+      
+      return () => {
+        // 组件卸载时清除图表
+        if (chartInstanceRef.current) {
+          chartInstanceRef.current.destroy();
+        }
+      };
+    }, [data, budgetDiffData, budgetDiffOptions]);
+
     return (
       <div className="h-96">
-        <Bar data={budgetDiffData} options={budgetDiffOptions} />
+        <canvas ref={chartRef} height="350"></canvas>
       </div>
     );
   };
 
   // 供应商分析图表
   const renderSupplierAnalysis = () => {
-    if (selectedView === 'marketShare') {
-      // 市场份额图表
-      const marketShareData = {
-        labels: data.topSuppliers.map((s: any) => s.name),
-        datasets: [
-          {
-            label: '中标数量',
-            data: data.topSuppliers.map((s: any) => s.count),
-            backgroundColor: [
-              'rgba(255, 99, 132, 0.7)',
-              'rgba(54, 162, 235, 0.7)',
-              'rgba(255, 206, 86, 0.7)',
-              'rgba(75, 192, 192, 0.7)',
-              'rgba(153, 102, 255, 0.7)',
-              'rgba(255, 159, 64, 0.7)',
-              'rgba(201, 203, 207, 0.7)',
-              'rgba(54, 162, 235, 0.5)',
-              'rgba(255, 99, 132, 0.5)',
-              'rgba(255, 159, 64, 0.5)',
-            ],
-            borderColor: [
-              'rgba(255, 99, 132, 1)',
-              'rgba(54, 162, 235, 1)',
-              'rgba(255, 206, 86, 1)',
-              'rgba(75, 192, 192, 1)',
-              'rgba(153, 102, 255, 1)',
-              'rgba(255, 159, 64, 1)',
-              'rgba(201, 203, 207, 1)',
-              'rgba(54, 162, 235, 0.8)',
-              'rgba(255, 99, 132, 0.8)',
-              'rgba(255, 159, 64, 0.8)',
-            ],
-            borderWidth: 1,
-          },
-        ],
-      };
+    // 市场份额与行业分布分析
+    const isMarketShare = selectedView === 'default' || selectedView === 'marketShare';
+    
+    const supplierData = {
+      labels: isMarketShare ? data.suppliers : data.industries,
+      datasets: [
+        {
+          label: isMarketShare ? '中标项目数量' : '行业项目数量',
+          data: isMarketShare ? data.projectCounts : data.industryCounts,
+          backgroundColor: [
+            'rgba(255, 99, 132, 0.7)',
+            'rgba(54, 162, 235, 0.7)',
+            'rgba(255, 206, 86, 0.7)',
+            'rgba(75, 192, 192, 0.7)',
+            'rgba(153, 102, 255, 0.7)',
+            'rgba(255, 159, 64, 0.7)',
+            'rgba(199, 199, 199, 0.7)',
+            'rgba(83, 102, 255, 0.7)',
+            'rgba(40, 159, 64, 0.7)',
+            'rgba(210, 199, 199, 0.7)',
+          ],
+          borderColor: [
+            'rgb(255, 99, 132)',
+            'rgb(54, 162, 235)',
+            'rgb(255, 206, 86)',
+            'rgb(75, 192, 192)',
+            'rgb(153, 102, 255)',
+            'rgb(255, 159, 64)',
+            'rgb(159, 159, 159)',
+            'rgb(83, 102, 255)',
+            'rgb(40, 159, 64)',
+            'rgb(210, 159, 199)',
+          ],
+          borderWidth: 1,
+        },
+      ],
+    };
 
-      const marketShareOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'right' as const,
-          },
-          title: {
-            display: true,
-            text: 'Top 10供应商市场份额',
-            font: {
-              size: 16,
-            }
-          },
-          tooltip: {
-            callbacks: {
-              label: function(context: any) {
-                const value = context.parsed;
-                const total = data.topSuppliers.reduce((sum: number, s: any) => sum + s.count, 0);
-                const percentage = ((value / total) * 100).toFixed(1);
-                return `${context.label}: ${value} (${percentage}%)`;
-              }
-            }
+    const supplierOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right' as const,
+        },
+        title: {
+          display: true,
+          text: isMarketShare ? '供应商市场份额分析' : '行业分布分析',
+          font: {
+            size: 16,
           }
         },
-        onClick: (_: any, elements: any) => {
-          if (elements.length > 0 && onClick) {
-            const index = elements[0].index;
-            onClick('supplier', data.topSuppliers[index].name);
+        tooltip: {
+          callbacks: {
+            label: function(context: any) {
+              const label = context.label || '';
+              const value = context.raw || 0;
+              const total = context.chart.data.datasets[0].data.reduce((a: number, b: number) => a + b, 0);
+              const percentage = Math.round((value / total) * 100);
+              return `${label}: ${value} (${percentage}%)`;
+            }
           }
         }
-      };
-
-      return (
-        <div className="h-96">
-          <Doughnut data={marketShareData} options={marketShareOptions} />
-        </div>
-      );
-
-    } else {
-      // 供应商行业分布分析
-      const industryDistData = {
-        labels: data.industryDistribution.map((i: any) => i.industry),
-        datasets: [
-          {
-            label: '供应商数量',
-            data: data.industryDistribution.map((i: any) => i.supplierCount),
-            backgroundColor: 'rgba(54, 162, 235, 0.7)',
-            borderColor: 'rgba(54, 162, 235, 1)',
-            borderWidth: 1,
-          },
-          {
-            label: '项目数量',
-            data: data.industryDistribution.map((i: any) => i.projectCount),
-            backgroundColor: 'rgba(255, 99, 132, 0.7)',
-            borderColor: 'rgba(255, 99, 132, 1)',
-            borderWidth: 1,
-          }
-        ],
-      };
-
-      const industryDistOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          title: {
-            display: true,
-            text: '各行业供应商分布',
-            font: {
-              size: 16,
-            }
-          },
-          tooltip: {
-            mode: 'index' as const,
-            intersect: false,
-          },
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: '数量'
-            }
-          },
-          x: {
-            title: {
-              display: true,
-              text: '行业'
-            }
-          }
-        },
-        onClick: (_: any, elements: any) => {
-          if (elements.length > 0 && onClick) {
-            const index = elements[0].index;
-            onClick('industry', data.industryDistribution[index].industry);
-          }
+      },
+      onClick: (_event: any, elements: any[]) => {
+        if (elements.length > 0 && onClick) {
+          const index = elements[0].index;
+          onClick(isMarketShare ? 'supplier' : 'industry', isMarketShare ? data.suppliers[index] : data.industries[index]);
         }
-      };
+      }
+    };
 
-      return (
-        <div className="h-96">
-          <Bar data={industryDistData} options={industryDistOptions} />
+    return (
+      <div className="h-96 flex flex-col">
+        <div className="flex justify-center mb-4">
+          <button
+            className={`px-4 py-2 rounded-l-lg ${selectedView === 'default' || selectedView === 'marketShare' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+            onClick={() => setSelectedView('marketShare')}
+          >
+            供应商市场份额
+          </button>
+          <button
+            className={`px-4 py-2 rounded-r-lg ${selectedView === 'industryDistribution' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+            onClick={() => setSelectedView('industryDistribution')}
+          >
+            行业分布
+          </button>
         </div>
-      );
-    }
+        <div className="flex-grow">
+          <Doughnut data={supplierData} options={supplierOptions} />
+        </div>
+      </div>
+    );
   };
 
-  // 时间趋势分析图表
+  // 趋势分析图表
   const renderTrendAnalysis = () => {
     const trendData = {
       labels: data.months,
       datasets: [
         {
-          label: '招标数量',
+          label: '项目数量',
+          data: data.projectCounts,
           borderColor: 'rgb(54, 162, 235)',
           backgroundColor: 'rgba(54, 162, 235, 0.5)',
-          fill: false,
-          data: data.projectCounts,
           yAxisID: 'y',
+          tension: 0.3,
         },
         {
-          label: '平均预算金额',
+          label: '平均预算 (万元)',
+          data: data.avgBudgets,
           borderColor: 'rgb(255, 99, 132)',
           backgroundColor: 'rgba(255, 99, 132, 0.5)',
-          fill: false,
-          data: data.avgBudgets,
           yAxisID: 'y1',
+          tension: 0.3,
         }
       ]
     };
@@ -323,7 +303,7 @@ export default function AdvancedAnalysisChart({ data, type, onClick }: AdvancedA
       plugins: {
         title: {
           display: true,
-          text: '招标趋势分析',
+          text: '项目趋势分析',
           font: {
             size: 16,
           }
@@ -331,7 +311,7 @@ export default function AdvancedAnalysisChart({ data, type, onClick }: AdvancedA
         tooltip: {
           mode: 'index' as const,
           intersect: false,
-        },
+        }
       },
       scales: {
         y: {
@@ -340,7 +320,7 @@ export default function AdvancedAnalysisChart({ data, type, onClick }: AdvancedA
           position: 'left' as const,
           title: {
             display: true,
-            text: '招标数量'
+            text: '项目数量'
           }
         },
         y1: {
@@ -352,11 +332,11 @@ export default function AdvancedAnalysisChart({ data, type, onClick }: AdvancedA
           },
           title: {
             display: true,
-            text: '平均预算金额 (万元)'
+            text: '平均预算 (万元)'
           }
         }
       },
-      onClick: (_: any, elements: any) => {
+      onClick: (_event: any, elements: any[]) => {
         if (elements.length > 0 && onClick) {
           const index = elements[0].index;
           onClick('month', data.months[index]);
@@ -373,31 +353,27 @@ export default function AdvancedAnalysisChart({ data, type, onClick }: AdvancedA
 
   // 相关性分析图表
   const renderCorrelationAnalysis = () => {
-    // 生成散点图数据
-    const scatterData = {
+    const correlationData = {
       datasets: [
         {
-          label: '项目预算与投标数量关系',
+          label: '预算与参与竞标供应商数量关系',
           data: data.correlationData.map((item: any) => ({
             x: item.budget,
-            y: item.bidderCount
+            y: item.bidderCount,
+            r: Math.log(item.projectCount + 1) * 5, // 气泡大小基于项目数量
           })),
-          backgroundColor: 'rgba(54, 162, 235, 0.7)',
-          borderColor: 'rgba(54, 162, 235, 1)',
-          borderWidth: 1,
-          pointRadius: 5,
-          pointHoverRadius: 7,
+          backgroundColor: 'rgba(75, 192, 192, 0.7)',
         }
       ]
     };
 
-    const scatterOptions = {
+    const correlationOptions = {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
         title: {
           display: true,
-          text: '预算与投标数量相关性分析',
+          text: '预算与竞标供应商数量相关性分析',
           font: {
             size: 16,
           }
@@ -405,83 +381,51 @@ export default function AdvancedAnalysisChart({ data, type, onClick }: AdvancedA
         tooltip: {
           callbacks: {
             label: function(context: any) {
-              const x = context.parsed.x;
-              const y = context.parsed.y;
-              return `预算: ${x}万元, 投标数量: ${y}`;
+              return [
+                `预算: ${context.raw.x}万元`,
+                `平均竞标供应商数: ${context.raw.y}`,
+                `项目数量: ${Math.round(Math.exp(context.raw.r / 5) - 1)}`
+              ];
             }
           }
         }
       },
       scales: {
+        x: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: '项目预算 (万元)'
+          }
+        },
         y: {
           beginAtZero: true,
           title: {
             display: true,
-            text: '投标数量'
+            text: '平均竞标供应商数量'
           }
-        },
-        x: {
-          title: {
-            display: true,
-            text: '项目预算 (万元)'
-          },
-          ticks: {
-            callback: function(value: any) {
-              return `${value}万`;
-            }
-          }
-        }
-      },
-      onClick: (_: any, elements: any) => {
-        if (elements.length > 0 && onClick) {
-          const index = elements[0].index;
-          onClick('project', data.correlationData[index].id);
         }
       }
     };
 
     return (
       <div className="h-96">
-        <Scatter data={scatterData} options={scatterOptions} />
+        <Scatter data={correlationData} options={correlationOptions} />
       </div>
     );
   };
 
-  return (
-    <div>
-      {type === 'supplier' && (
-        <div className="mb-4">
-          <div className="flex space-x-2 mb-4">
-            <button 
-              className={`px-4 py-2 rounded-md ${selectedView === 'default' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-              onClick={() => setSelectedView('default')}
-            >
-              行业分布
-            </button>
-            <button 
-              className={`px-4 py-2 rounded-md ${selectedView === 'marketShare' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-              onClick={() => setSelectedView('marketShare')}
-            >
-              市场份额
-            </button>
-          </div>
-        </div>
-      )}
-
-      {type === 'budget' && renderBudgetAnalysis()}
-      {type === 'supplier' && renderSupplierAnalysis()}
-      {type === 'trend' && renderTrendAnalysis()}
-      {type === 'correlation' && renderCorrelationAnalysis()}
-
-      {/* 数据洞察卡片 */}
-      <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-        <h3 className="text-lg font-medium mb-2">数据洞察</h3>
-        <ul className="list-disc pl-5 space-y-1">
-          {data.insights && data.insights.map((insight: string, index: number) => (
-            <li key={index} className="text-gray-700">{insight}</li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
+  // 根据分析类型渲染对应图表
+  switch (type) {
+    case 'budget':
+      return renderBudgetAnalysis();
+    case 'supplier':
+      return renderSupplierAnalysis();
+    case 'trend':
+      return renderTrendAnalysis();
+    case 'correlation':
+      return renderCorrelationAnalysis();
+    default:
+      return <div>无效的分析类型</div>;
+  }
 } 
