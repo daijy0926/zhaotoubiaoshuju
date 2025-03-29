@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 29, 29, 31;
+  --background-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 245, 245, 247;
+    --background-rgb: 29, 29, 31;
+  }
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+/* Apple-style UI 组件 */
+.apple-card {
+  @apply bg-white rounded-xl shadow-apple p-6 hover:scale-[1.02] transition-transform duration-300;
+}
+
+.apple-button {
+  @apply bg-apple-blue text-white px-6 py-3 rounded-xl font-medium hover:opacity-90 transition-all;
+}
+
+.apple-button-secondary {
+  @apply bg-transparent border border-gray-300 text-gray-700 px-6 py-3 rounded-xl font-medium hover:bg-gray-50 transition-all;
+}
+
+.apple-input {
+  @apply border-0 rounded-xl bg-apple-gray p-4 w-full focus:ring-1 focus:ring-apple-blue focus:outline-none;
+}
+
+.apple-select {
+  @apply border-0 rounded-xl bg-apple-gray p-4 w-full focus:ring-1 focus:ring-apple-blue focus:outline-none;
+}
+
+.glass-navbar {
+  @apply bg-white/70 backdrop-blur-xl sticky top-0 z-50 border-b border-gray-200/50;
+}
+
+/* 加载骨架屏 */
+.skeleton {
+  @apply animate-pulse bg-apple-gray rounded-xl h-full w-full;
+}
+
+/* 平滑滚动 */
+html {
+  scroll-behavior: smooth;
+}
+
+/* 首页特性卡片 */
+.feature-card {
+  background-color: #f9f9f9;
+  padding: 2rem;
+  border-radius: 0.75rem;
+  text-align: center;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+}
+
+.feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  margin-bottom: 1.5rem;
+} 

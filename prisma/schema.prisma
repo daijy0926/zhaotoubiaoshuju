@@ -1,0 +1,40 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model TenderProject {
+  id           String   @id
+  title        String   @db.VarChar(500)
+  area         String   @db.VarChar(100)
+  city         String?  @db.VarChar(100)
+  district     String?  @db.VarChar(100)
+  buyer        String   @db.VarChar(200)
+  buyerClass   String?  @db.VarChar(100)
+  industry     String?  @db.VarChar(100)
+  publishTime  BigInt
+  budget       Float?
+  bidAmount    Float?
+  subtype      String?  @db.VarChar(100)
+  detail       String?  @db.Text
+  winner       String?  @db.VarChar(200)
+  bidOpenTime  BigInt?
+  bidEndTime   BigInt?
+  signEndTime  BigInt?
+  buyerTel     String?  @db.VarChar(100)
+  buyerPerson  String?  @db.VarChar(100)
+  agency       String?  @db.VarChar(200)
+  agencyTel    String?  @db.VarChar(100)
+  agencyPerson String?  @db.VarChar(100)
+  site         String?  @db.VarChar(200)
+  metadata     String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+} 
