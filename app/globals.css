@@ -33,6 +33,22 @@ body {
   @apply bg-transparent border border-gray-300 text-gray-700 px-6 py-3 rounded-xl font-medium hover:bg-gray-50 transition-all;
 }
 
+.apple-button-sm {
+  @apply bg-apple-blue text-white px-4 py-2 text-sm rounded-lg font-medium hover:opacity-90 transition-all;
+}
+
+.apple-button-lg {
+  @apply bg-apple-blue text-white px-8 py-4 rounded-xl font-medium hover:opacity-90 transition-all text-lg;
+}
+
+.apple-button-outline {
+  @apply bg-transparent border border-apple-blue text-apple-blue px-6 py-3 rounded-xl font-medium hover:bg-blue-50 transition-all;
+}
+
+.view-details-button {
+  @apply text-blue-600 text-sm font-medium hover:text-blue-800 transition-colors;
+}
+
 .apple-input {
   @apply border-0 rounded-xl bg-apple-gray p-4 w-full focus:ring-1 focus:ring-apple-blue focus:outline-none;
 }
@@ -43,6 +59,27 @@ body {
 
 .glass-navbar {
   @apply bg-white/70 backdrop-blur-xl sticky top-0 z-50 border-b border-gray-200/50;
+}
+
+/* 数据表格样式 */
+.data-table {
+  @apply min-w-full divide-y divide-gray-200;
+}
+
+.data-table th {
+  @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+}
+
+.data-table td {
+  @apply px-6 py-4 whitespace-nowrap text-sm text-gray-500;
+}
+
+.data-table tr {
+  @apply hover:bg-gray-50;
+}
+
+.data-table-container {
+  @apply overflow-x-auto shadow rounded-lg;
 }
 
 /* 加载骨架屏 */
