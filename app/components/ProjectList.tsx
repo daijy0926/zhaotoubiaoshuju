@@ -1,230 +1,343 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { exportToCSV, formatDate, formatMoney } from '@/lib/utils';
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface Project {
   id: string;
   title: string;
-  publishTime: number;
   area: string;
-  industry: string;
-  budget: number;
-  bidAmount: number;
-  winningBidder: string;
-  publisherName: string;
-  projectType: string;
-  tenderMethod: string;
-  projectStatus: string;
-  projectDetails: string;
+  city?: string;
+  buyer: string;
+  industry?: string;
+  publishTime: number;
+  publishDate: string;
+  budget?: number;
+  bidAmount?: number;
+  winner?: string;
+  bidOpenTime?: number;
+  bidEndTime?: number;
+}
+
+interface Pagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
 }
 
 interface ProjectListProps {
   userId: string;
-  filters: {
-    timeRange: string;
-    area: string;
-    industry: string;
-    startDate: string | null;
-    endDate: string | null;
+  filters?: {
+    timeRange?: string;
+    area?: string;
+    industry?: string;
+    startDate?: string | null;
+    endDate?: string | null;
   };
 }
 
-export default function ProjectList({ userId, filters }: ProjectListProps) {
+export default function ProjectList({ userId, filters = {} }: ProjectListProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
   const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({
+  const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     pageSize: 10,
     total: 0,
-    totalPages: 0
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false
   });
-  const [sortBy, setSortBy] = useState('publishTime');
-  const [sortOrder, setSortOrder] = useState('desc');
-  
-  // 加载项目数据
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [sortConfig, setSortConfig] = useState<{
+    key: string;
+    direction: 'asc' | 'desc';
+  }>({ key: 'publishTime', direction: 'desc' });
+
+  // 获取项目列表
   useEffect(() => {
-    async function fetchProjects() {
-      setLoading(true);
+    const fetchProjects = async () => {
+      setIsLoading(true);
       try {
+        // 构建查询参数
         const queryParams = new URLSearchParams();
         
-        // 添加所有筛选条件
-        Object.entries(filters).forEach(([key, value]) => {
-          if (value !== null) {
-            queryParams.append(key, String(value));
-          }
-        });
+        // 添加分页参数
+        queryParams.append('page', currentPage.toString());
+        queryParams.append('pageSize', pagination.pageSize.toString());
         
-        // 添加分页和排序参数
-        queryParams.append('page', String(pagination.page));
-        queryParams.append('pageSize', String(pagination.pageSize));
-        queryParams.append('sortBy', sortBy);
-        queryParams.append('sortOrder', sortOrder);
+        // 添加搜索参数
+        if (searchTerm) {
+          queryParams.append('search', searchTerm);
+        }
         
-        // 添加用户ID
-        queryParams.append('userId', userId);
+        // 添加筛选参数
+        if (filters.timeRange) {
+          queryParams.append('timeRange', filters.timeRange);
+        }
+        
+        if (filters.area && filters.area !== 'all') {
+          queryParams.append('area', filters.area);
+        }
+        
+        if (filters.industry && filters.industry !== 'all') {
+          queryParams.append('industry', filters.industry);
+        }
+        
+        if (filters.startDate) {
+          queryParams.append('startDate', filters.startDate);
+        }
+        
+        if (filters.endDate) {
+          queryParams.append('endDate', filters.endDate);
+        }
         
         const response = await fetch(`/api/dashboard/projects?${queryParams.toString()}`);
+        
         if (!response.ok) {
           throw new Error('Failed to fetch projects');
         }
         
         const data = await response.json();
-        setProjects(data.projects);
-        setPagination(prev => ({
-          ...prev,
-          total: data.pagination.total,
-          totalPages: data.pagination.totalPages
-        }));
+        setProjects(data.projects || []);
+        setPagination(data.pagination || {
+          page: 1,
+          pageSize: 10,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        });
       } catch (error) {
-        console.error('Error fetching projects:', error);
-        // 设置空数据
-        setProjects([]);
+        console.error('Failed to fetch projects:', error);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
-    }
+    };
     
     fetchProjects();
-  }, [userId, filters, pagination.page, pagination.pageSize, sortBy, sortOrder]);
+  }, [userId, currentPage, searchTerm, filters]);
   
-  // 处理排序
-  const handleSort = (column: string) => {
-    if (sortBy === column) {
-      // 如果已经按这列排序，则切换排序顺序
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      // 否则，按新列排序，默认降序
-      setSortBy(column);
-      setSortOrder('desc');
-    }
+  // 处理搜索
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCurrentPage(1); // 重置到第一页
   };
   
-  // 获取排序指示器
-  const getSortIndicator = (column: string) => {
-    if (sortBy !== column) return null;
-    return sortOrder === 'asc' ? '↑' : '↓';
+  // 处理排序
+  const handleSort = (key: string) => {
+    setSortConfig({
+      key,
+      direction: 
+        sortConfig.key === key && sortConfig.direction === 'asc' 
+          ? 'desc' 
+          : 'asc'
+    });
+  };
+  
+  // 本地排序
+  const sortedProjects = [...projects].sort((a, b) => {
+    const key = sortConfig.key as keyof Project;
+    const aValue = a[key];
+    const bValue = b[key];
+    
+    if (aValue === undefined || aValue === null) return 1;
+    if (bValue === undefined || bValue === null) return -1;
+    
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return sortConfig.direction === 'asc' 
+        ? aValue - bValue 
+        : bValue - aValue;
+    }
+    
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      return sortConfig.direction === 'asc'
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    }
+    
+    return 0;
+  });
+  
+  // 处理项目选择
+  const handleSelectProject = (id: string) => {
+    const newSelectedIds = new Set(selectedIds);
+    if (newSelectedIds.has(id)) {
+      newSelectedIds.delete(id);
+    } else {
+      newSelectedIds.add(id);
+    }
+    setSelectedIds(newSelectedIds);
+  };
+  
+  // 处理全选/取消全选
+  const handleSelectAll = () => {
+    if (selectedIds.size === projects.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(projects.map(p => p.id)));
+    }
   };
   
   // 处理分页
-  const handlePageChange = (newPage: number) => {
-    if (newPage < 1 || newPage > pagination.totalPages) return;
-    setPagination(prev => ({ ...prev, page: newPage }));
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
   };
   
-  // 导出数据为CSV
-  const handleExport = () => {
-    if (projects.length === 0) return;
-    
-    // 准备导出数据
-    const headers = [
-      '项目标题', '发布时间', '地区', '行业', '预算(元)', 
-      '中标金额(元)', '中标供应商', '发布单位', '项目类型', '招标方式', '项目状态'
-    ];
-    
-    const data = projects.map(project => [
-      project.title,
-      formatDate(project.publishTime * 1000),
-      project.area,
-      project.industry,
-      formatMoney(project.budget),
-      formatMoney(project.bidAmount),
-      project.winningBidder || '-',
-      project.publisherName || '-',
-      project.projectType || '-',
-      project.tenderMethod || '-',
-      project.projectStatus || '-'
-    ]);
-    
-    exportToCSV([headers, ...data], `招投标项目数据_${new Date().toISOString().split('T')[0]}`);
+  // 处理查看详情
+  const handleViewDetails = (id: string) => {
+    router.push(`/projects/${id}`);
+  };
+
+  // 格式化金额
+  const formatCurrency = (amount?: number) => {
+    if (amount === undefined || amount === null) return '—';
+    return new Intl.NumberFormat('zh-CN', {
+      style: 'currency',
+      currency: 'CNY',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
   };
   
-  // 导出全部数据
-  const handleExportAll = async () => {
-    setLoading(true);
-    try {
-      const queryParams = new URLSearchParams();
-      
-      // 添加所有筛选条件
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== null) {
-          queryParams.append(key, String(value));
-        }
-      });
-      
-      // 导出全部数据，不分页
-      queryParams.append('page', '1');
-      queryParams.append('pageSize', '10000');
-      queryParams.append('sortBy', sortBy);
-      queryParams.append('sortOrder', sortOrder);
-      queryParams.append('userId', userId);
-      
-      const response = await fetch(`/api/dashboard/projects?${queryParams.toString()}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch all projects');
-      }
-      
-      const data = await response.json();
-      
-      // 准备导出数据
-      const headers = [
-        '项目标题', '发布时间', '地区', '行业', '预算(元)', 
-        '中标金额(元)', '中标供应商', '发布单位', '项目类型', '招标方式', '项目状态'
-      ];
-      
-      const exportData = data.projects.map((project: Project) => [
-        project.title,
-        formatDate(project.publishTime * 1000),
-        project.area,
-        project.industry,
-        formatMoney(project.budget),
-        formatMoney(project.bidAmount),
-        project.winningBidder || '-',
-        project.publisherName || '-',
-        project.projectType || '-',
-        project.tenderMethod || '-',
-        project.projectStatus || '-'
-      ]);
-      
-      exportToCSV([headers, ...exportData], `招投标项目完整数据_${new Date().toISOString().split('T')[0]}`);
-    } catch (error) {
-      console.error('Error exporting all projects:', error);
-    } finally {
-      setLoading(false);
+  // 格式化日期
+  const formatDate = (timestamp?: number) => {
+    if (!timestamp) return '—';
+    return new Date(timestamp * 1000).toLocaleDateString('zh-CN');
+  };
+  
+  // 生成分页器
+  const renderPagination = () => {
+    const pages = [];
+    const maxPagesToShow = 5;
+    
+    let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+    let endPage = Math.min(pagination.totalPages, startPage + maxPagesToShow - 1);
+    
+    if (endPage - startPage + 1 < maxPagesToShow) {
+      startPage = Math.max(1, endPage - maxPagesToShow + 1);
     }
+    
+    // 首页按钮
+    pages.push(
+      <button 
+        key="first" 
+        onClick={() => handlePageChange(1)} 
+        disabled={currentPage === 1}
+        className={`px-2 py-1 rounded ${currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'}`}
+      >
+        首页
+      </button>
+    );
+    
+    // 上一页按钮
+    pages.push(
+      <button 
+        key="prev" 
+        onClick={() => handlePageChange(currentPage - 1)} 
+        disabled={!pagination.hasPrev}
+        className={`px-2 py-1 rounded ${!pagination.hasPrev ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'}`}
+      >
+        &lt;
+      </button>
+    );
+    
+    // 页码按钮
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(
+        <button 
+          key={i} 
+          onClick={() => handlePageChange(i)} 
+          className={`px-3 py-1 rounded ${currentPage === i ? 'bg-blue-600 text-white' : 'hover:bg-blue-50'}`}
+        >
+          {i}
+        </button>
+      );
+    }
+    
+    // 下一页按钮
+    pages.push(
+      <button 
+        key="next" 
+        onClick={() => handlePageChange(currentPage + 1)} 
+        disabled={!pagination.hasNext}
+        className={`px-2 py-1 rounded ${!pagination.hasNext ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'}`}
+      >
+        &gt;
+      </button>
+    );
+    
+    // 末页按钮
+    pages.push(
+      <button 
+        key="last" 
+        onClick={() => handlePageChange(pagination.totalPages)} 
+        disabled={currentPage === pagination.totalPages || pagination.totalPages === 0}
+        className={`px-2 py-1 rounded ${currentPage === pagination.totalPages || pagination.totalPages === 0 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'}`}
+      >
+        末页
+      </button>
+    );
+    
+    return (
+      <div className="flex items-center justify-between mt-4">
+        <div className="text-sm text-gray-500">
+          共 <span className="font-medium">{pagination.total}</span> 条数据，
+          当前第 <span className="font-medium">{currentPage}</span>/{pagination.totalPages} 页
+        </div>
+        <div className="flex space-x-1">
+          {pages}
+        </div>
+      </div>
+    );
   };
   
+  // 渲染表格
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="flex justify-between items-center p-4 border-b">
-        <h3 className="text-lg font-medium">项目列表</h3>
-        <div className="flex gap-2">
-          <button 
-            onClick={handleExport} 
-            disabled={loading || projects.length === 0}
-            className="apple-button-sm"
+    <div className="bg-white rounded-xl shadow p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-semibold">项目列表</h2>
+        <div className="flex space-x-4">
+          <form onSubmit={handleSearch} className="flex">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="搜索项目、采购方、中标方..."
+              className="border border-gray-300 rounded-l-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <button
+              type="submit"
+              className="bg-blue-600 text-white px-4 py-2 rounded-r-lg hover:bg-blue-700 transition-colors"
+            >
+              搜索
+            </button>
+          </form>
+          <button
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+            onClick={() => {/* 导出功能 */}}
+            disabled={selectedIds.size === 0}
           >
-            导出当前页
-          </button>
-          <button 
-            onClick={handleExportAll} 
-            disabled={loading}
-            className="apple-button-sm"
-          >
-            导出全部数据
+            导出选中
           </button>
         </div>
       </div>
       
-      {loading ? (
-        <div className="p-4 text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          <p className="mt-2 text-gray-600">加载中...</p>
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="loading-spinner"></div>
+          <span className="ml-2">加载中...</span>
         </div>
       ) : projects.length === 0 ? (
-        <div className="p-4 text-center text-gray-500">
-          没有找到匹配的项目
+        <div className="text-center py-12 text-gray-500">
+          <p>未找到符合条件的项目</p>
         </div>
       ) : (
         <>
@@ -232,73 +345,126 @@ export default function ProjectList({ userId, filters }: ProjectListProps) {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-4 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === projects.length && projects.length > 0}
+                      onChange={handleSelectAll}
+                      className="rounded text-blue-600 focus:ring-blue-500"
+                    />
+                  </th>
                   <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('title')}
                   >
-                    项目标题 {getSortIndicator('title')}
+                    项目名称
+                    {sortConfig.key === 'title' && (
+                      <span className="ml-1">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                    )}
                   </th>
                   <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('publishTime')}
                   >
-                    发布时间 {getSortIndicator('publishTime')}
+                    发布日期
+                    {sortConfig.key === 'publishTime' && (
+                      <span className="ml-1">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                    )}
                   </th>
                   <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('area')}
                   >
-                    地区 {getSortIndicator('area')}
+                    地区
+                    {sortConfig.key === 'area' && (
+                      <span className="ml-1">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                    )}
                   </th>
                   <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                    onClick={() => handleSort('industry')}
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('buyer')}
                   >
-                    行业 {getSortIndicator('industry')}
+                    采购方
+                    {sortConfig.key === 'buyer' && (
+                      <span className="ml-1">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                    )}
                   </th>
                   <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('budget')}
                   >
-                    预算 {getSortIndicator('budget')}
+                    预算金额
+                    {sortConfig.key === 'budget' && (
+                      <span className="ml-1">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                    )}
                   </th>
                   <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('bidAmount')}
                   >
-                    中标金额 {getSortIndicator('bidAmount')}
+                    中标金额
+                    {sortConfig.key === 'bidAmount' && (
+                      <span className="ml-1">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                    )}
                   </th>
                   <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('winner')}
                   >
-                    详情
+                    中标方
+                    {sortConfig.key === 'winner' && (
+                      <span className="ml-1">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    操作
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {projects.map((project) => (
+                {sortedProjects.map((project) => (
                   <tr key={project.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {project.title}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(project.id)}
+                        onChange={() => handleSelectProject(project.id)}
+                        className="rounded text-blue-600 focus:ring-blue-500"
+                      />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(project.publishTime * 1000)}
+                    <td className="px-4 py-4">
+                      <div className="text-sm font-medium text-gray-900 max-w-md truncate" title={project.title}>
+                        {project.title}
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {project.area}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">{project.publishDate}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {project.industry}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">{project.area}{project.city ? ` - ${project.city}` : ''}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {project.budget ? formatMoney(project.budget) : '-'}
+                    <td className="px-4 py-4">
+                      <div className="text-sm text-gray-500 max-w-xs truncate" title={project.buyer}>
+                        {project.buyer}
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {project.bidAmount ? formatMoney(project.bidAmount) : '-'}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">{formatCurrency(project.budget)}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button className="text-indigo-600 hover:text-indigo-900">
-                        查看
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">{formatCurrency(project.bidAmount)}</div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="text-sm text-gray-500 max-w-xs truncate" title={project.winner}>
+                        {project.winner || '—'}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button
+                        onClick={() => handleViewDetails(project.id)}
+                        className="text-blue-600 hover:text-blue-900 ml-2"
+                      >
+                        查看详情
                       </button>
                     </td>
                   </tr>
@@ -307,90 +473,7 @@ export default function ProjectList({ userId, filters }: ProjectListProps) {
             </table>
           </div>
           
-          {/* 分页控件 */}
-          <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
-            <div className="flex-1 flex justify-between sm:hidden">
-              <button
-                onClick={() => handlePageChange(pagination.page - 1)}
-                disabled={pagination.page === 1}
-                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-              >
-                上一页
-              </button>
-              <button
-                onClick={() => handlePageChange(pagination.page + 1)}
-                disabled={pagination.page === pagination.totalPages}
-                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-              >
-                下一页
-              </button>
-            </div>
-            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm text-gray-700">
-                  显示第 <span className="font-medium">{(pagination.page - 1) * pagination.pageSize + 1}</span> 到第{' '}
-                  <span className="font-medium">
-                    {Math.min(pagination.page * pagination.pageSize, pagination.total)}
-                  </span>{' '}
-                  条，共 <span className="font-medium">{pagination.total}</span> 条结果
-                </p>
-              </div>
-              <div>
-                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                  <button
-                    onClick={() => handlePageChange(pagination.page - 1)}
-                    disabled={pagination.page === 1}
-                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-                  >
-                    <span className="sr-only">上一页</span>
-                    &larr;
-                  </button>
-                  
-                  {/* 页码按钮 */}
-                  {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                    // 显示当前页码附近的页码
-                    let pageNum;
-                    if (pagination.totalPages <= 5) {
-                      // 如果总页数少于5，显示所有页码
-                      pageNum = i + 1;
-                    } else if (pagination.page <= 3) {
-                      // 如果当前页在前3页，显示前5页
-                      pageNum = i + 1;
-                    } else if (pagination.page >= pagination.totalPages - 2) {
-                      // 如果当前页在后3页，显示后5页
-                      pageNum = pagination.totalPages - 4 + i;
-                    } else {
-                      // 否则显示当前页及其前后各2页
-                      pageNum = pagination.page - 2 + i;
-                    }
-                    
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => handlePageChange(pageNum)}
-                        className={`relative inline-flex items-center px-4 py-2 border ${
-                          pagination.page === pageNum
-                            ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600'
-                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                        } text-sm font-medium`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                  
-                  <button
-                    onClick={() => handlePageChange(pagination.page + 1)}
-                    disabled={pagination.page === pagination.totalPages}
-                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-                  >
-                    <span className="sr-only">下一页</span>
-                    &rarr;
-                  </button>
-                </nav>
-              </div>
-            </div>
-          </div>
+          {renderPagination()}
         </>
       )}
     </div>
